@@ -181,7 +181,7 @@ pre{margin:0;padding:12px;background:#0f1216;color:#d6e2f0;border-radius:6px;ove
     var fr=new FileReader();
     fr.onload=function(){
       restore();
-      var html='<div style="text-align:left"><img src="'+fr.result+'" alt="" style="max-width:100%;height:auto"></div><p><br></p>';
+      var html='<div style="text-align:left"><img src="'+fr.result+'" data-filename="'+f.name.replace(/"/g,'&quot;')+'" alt="" style="max-width:100%;height:auto"></div><p><br></p>';
       document.execCommand('insertHTML',false,html);
       update();
     };
@@ -278,7 +278,7 @@ pre{margin:0;padding:12px;background:#0f1216;color:#d6e2f0;border-radius:6px;ove
     c.querySelectorAll('blockquote').forEach(function(q){q.style.borderLeft='4px solid #bbb';q.style.padding='.5em 1em';q.style.color='#555'});
     c.querySelectorAll('table').forEach(function(t){t.style.borderCollapse='collapse';t.style.width='100%'});
     c.querySelectorAll('td,th').forEach(function(d){d.style.border='1px solid #999';d.style.padding='6px 8px'});
-    if(forCode)c.querySelectorAll('img').forEach(function(i){i.setAttribute('src','')});
+    if(forCode)c.querySelectorAll('img').forEach(function(i){i.setAttribute('src',i.getAttribute('data-filename')||'');i.removeAttribute('data-filename')});
     c.querySelectorAll('[data-dbl]').forEach(function(n){n.removeAttribute('data-dbl')});
     return c.innerHTML.replace(/<p><br><\/p>$/,'').replace(/<div><br><\/div>/g,'<br>');
   }

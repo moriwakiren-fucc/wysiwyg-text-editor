@@ -25,11 +25,20 @@ input[type=color]{width:32px;height:32px;padding:0;border:1px solid var(--border
 #editor{min-height:220px;padding:12px;border:1px solid var(--border);border-radius:6px;outline:none;background:#fff;color:#111;font-size:16px;overflow-wrap:anywhere}
 #editor:focus{border-color:var(--accent)}
 #editor img{max-width:100%;height:auto}
+#editor blockquote{border-left:4px solid #bbb;padding:.5em 1em;color:#555}
+#editor table{border-collapse:collapse;width:100%}
+#editor td,#editor th{border:1px solid #999;padding:6px 8px;min-width:40px}
+#editor a{color:#1d4ed8}
 #editor:empty::before{content:"ここに入力してください…";color:#999}
 .tabs{display:flex;gap:6px;margin-bottom:10px}
 .frame-wrap{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;display:flex;justify-content:center}
-iframe{border:1px solid var(--border);background:#fff;height:360px;width:100%;max-width:100%;transition:width .2s}
-iframe.sp{width:375px}
+iframe{border:1px solid var(--border);background:#fff;height:auto;aspect-ratio:16/9;width:100%;max-width:100%;display:block}
+iframe.sp{width:360px;aspect-ratio:9/16}
+[hidden]{display:none!important}
+.panel{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;margin-bottom:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px}
+.panel input[type=text],.panel input[type=number]{font:inherit;font-size:14px;padding:4px 8px;min-height:32px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+.panel input[type=text]{flex:1;min-width:180px}
+.panel input[type=number]{width:60px}
 pre{margin:0;padding:12px;background:#0f1216;color:#d6e2f0;border-radius:6px;overflow:auto;max-height:340px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-all}
 .copyrow{display:flex;justify-content:flex-end;margin-bottom:6px}
 .hint{font-size:12px;color:var(--muted);margin:6px 0 0}
@@ -62,7 +71,25 @@ pre{margin:0;padding:12px;background:#0f1216;color:#d6e2f0;border-radius:6px;ove
     <button data-cmd="justifyRight" title="右揃え">右</button>
     <span class="sep"></span>
     <button id="imgbtn">画像挿入</button>
+    <span class="sep"></span>
+    <button data-cmd="outdent" title="インデントを戻す">◀インデント</button>
+    <button data-cmd="indent" title="インデントを増やす">インデント▶</button>
+    <button id="quote" title="引用">❝ 引用</button>
+    <button id="linkbtn" title="リンク">🔗 リンク</button>
+    <button id="tblbtn" title="表">▦ 表</button>
     <input type="file" id="file" accept="image/*" hidden>
+  </div>
+  <div class="panel" id="linkPanel" hidden>
+    <span>URL</span><input type="text" id="url" placeholder="https://">
+    <button id="linkApply">適用</button><button id="linkRemove">リンク解除</button>
+  </div>
+  <div class="panel" id="tblPanel" hidden>
+    <span>行</span><input type="number" id="rows" value="3" min="1" max="20">
+    <span>列</span><input type="number" id="cols" value="3" min="1" max="10">
+    <button id="tblIns">表を挿入</button>
+    <span class="sep"></span>
+    <button id="rowAdd">行追加</button><button id="colAdd">列追加</button>
+    <button id="rowDel">行削除</button><button id="colDel">列削除</button><button id="tblDel">表削除</button>
   </div>
   <div id="editor" contenteditable="true" spellcheck="false"></div>
   <p class="hint">画像はブロック（単独の行）として挿入されます。画像を選択して左・中央・右ボタンで配置を変えられます。</p>
@@ -100,7 +127,7 @@ pre{margin:0;padding:12px;background:#0f1216;color:#d6e2f0;border-radius:6px;ove
   function exec(c,v){restore();document.execCommand('styleWithCSS',false,true);document.execCommand(c,false,v||null);update()}
 
   // toolbar buttons keep editor selection
-  document.querySelectorAll('#toolbar button').forEach(function(b){
+  document.querySelectorAll('#toolbar button,.panel button').forEach(function(b){
     b.addEventListener('mousedown',function(e){e.preventDefault()});
   });
   document.querySelectorAll('[data-cmd]').forEach(function(b){
@@ -171,21 +198,97 @@ pre{margin:0;padding:12px;background:#0f1216;color:#d6e2f0;border-radius:6px;ove
   document.addEventListener('selectionchange',function(){if(saved)refreshState()});
 
   // output
-  function cleanHTML(){
+  // quote
+  $('quote').addEventListener('click',function(){
+    restore();
+    var v=document.queryCommandValue('formatBlock');
+    exec('formatBlock',v==='blockquote'?'p':'blockquote');
+  });
+
+  // link
+  var editingLink=null;
+  function curEl(sel){var n=sel.anchorNode;if(n&&n.nodeType===3)n=n.parentNode;return n}
+  $('linkbtn').addEventListener('click',function(){
+    restore();
+    var p=$('linkPanel'), s=getSelection(), el=s.rangeCount?curEl(s):null;
+    editingLink=(el&&el.closest&&el.closest('a')&&ed.contains(el))?el.closest('a'):null;
+    $('url').value=editingLink?editingLink.getAttribute('href'):'https://';
+    p.hidden=!p.hidden;
+    if(!p.hidden)$('url').focus();
+  });
+  $('linkApply').addEventListener('click',function(){
+    var v=$('url').value.trim(); if(!v) return;
+    restore();
+    var s=getSelection();
+    if(editingLink){editingLink.setAttribute('href',v)}
+    else if(s.rangeCount&&s.getRangeAt(0).collapsed){
+      document.execCommand('insertHTML',false,'<a href="'+v.replace(/"/g,'&quot;')+'">'+v.replace(/</g,'&lt;')+'</a>');
+    }else document.execCommand('createLink',false,v);
+    $('linkPanel').hidden=true; update();
+  });
+  $('linkRemove').addEventListener('click',function(){
+    restore();
+    if(editingLink){var a=editingLink;while(a.firstChild)a.parentNode.insertBefore(a.firstChild,a);a.remove()}
+    else document.execCommand('unlink');
+    $('linkPanel').hidden=true; update();
+  });
+
+  // table
+  $('tblbtn').addEventListener('click',function(){var p=$('tblPanel');p.hidden=!p.hidden});
+  function cell(){
+    restore();var s=getSelection();if(!s.rangeCount)return null;
+    var el=curEl(s),c=el&&el.closest?el.closest('td,th'):null;
+    return c&&ed.contains(c)?c:null;
+  }
+  $('tblIns').addEventListener('click',function(){
+    var r=Math.max(1,Math.min(20,+$('rows').value||3)),c=Math.max(1,Math.min(10,+$('cols').value||3));
+    var h='<table><tbody>';
+    for(var i=0;i<r;i++){h+='<tr>';for(var j=0;j<c;j++)h+='<td><br></td>';h+='</tr>'}
+    h+='</tbody></table><p><br></p>';
+    restore();document.execCommand('insertHTML',false,h);update();
+  });
+  function newCells(tr,idx,th){var e=document.createElement(th||'td');e.innerHTML='<br>';var ref=tr.cells[idx];tr.insertBefore(e,ref?ref.nextSibling:null)}
+  $('rowAdd').addEventListener('click',function(){
+    var c=cell();if(!c)return;var tr=c.parentNode,n=document.createElement('tr');
+    for(var i=0;i<tr.cells.length;i++){var e=document.createElement('td');e.innerHTML='<br>';n.appendChild(e)}
+    tr.parentNode.insertBefore(n,tr.nextSibling);update();
+  });
+  $('colAdd').addEventListener('click',function(){
+    var c=cell();if(!c)return;var i=c.cellIndex,t=c.closest('table');
+    Array.prototype.forEach.call(t.rows,function(tr){newCells(tr,i)});update();
+  });
+  $('rowDel').addEventListener('click',function(){
+    var c=cell();if(!c)return;var t=c.closest('table');
+    if(t.rows.length<=1)t.remove();else c.parentNode.remove();update();
+  });
+  $('colDel').addEventListener('click',function(){
+    var c=cell();if(!c)return;var i=c.cellIndex,t=c.closest('table');
+    if(c.parentNode.cells.length<=1){t.remove()}
+    else Array.prototype.forEach.call(t.rows,function(tr){if(tr.cells[i])tr.deleteCell(i)});update();
+  });
+  $('tblDel').addEventListener('click',function(){
+    var c=cell();if(!c)return;c.closest('table').remove();update();
+  });
+
+  function cleanHTML(forCode){
     var c=ed.cloneNode(true);
+    c.querySelectorAll('blockquote').forEach(function(q){q.style.borderLeft='4px solid #bbb';q.style.padding='.5em 1em';q.style.color='#555'});
+    c.querySelectorAll('table').forEach(function(t){t.style.borderCollapse='collapse';t.style.width='100%'});
+    c.querySelectorAll('td,th').forEach(function(d){d.style.border='1px solid #999';d.style.padding='6px 8px'});
+    if(forCode)c.querySelectorAll('img').forEach(function(i){i.setAttribute('src','')});
     c.querySelectorAll('[data-dbl]').forEach(function(n){n.removeAttribute('data-dbl')});
     return c.innerHTML.replace(/<p><br><\/p>$/,'').replace(/<div><br><\/div>/g,'<br>');
   }
   function pretty(h){
-    return h.replace(/(<\/(div|p|h\d|ul|ol|li)>)/g,'$1\n').replace(/<br>(?!\n)/g,'<br>\n').trim();
+    return h.replace(/(<\/(div|p|h\d|ul|ol|li|tr|table|blockquote)>)/g,'$1\n').replace(/<br>(?!\n)/g,'<br>\n').trim();
   }
   function update(){
     var has=ed.textContent.trim()!==''||ed.querySelector('img');
     $('previewSec').hidden=!has; $('codeSec').hidden=!has;
     if(!has) return;
-    var h=cleanHTML();
+    var h=cleanHTML(false);
     $('frame').srcdoc='<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:16px;font-family:system-ui,"Hiragino Sans","Yu Gothic",sans-serif;line-height:1.7;color:#111;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style></head><body>'+h+'</body></html>';
-    $('code').textContent=pretty(h);
+    $('code').textContent=pretty(cleanHTML(true));
   }
   ed.addEventListener('input',update);
 
